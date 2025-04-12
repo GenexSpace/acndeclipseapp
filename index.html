@@ -12,11 +12,61 @@
           });
         });
       }
+
+        // --- Fullscreen toggle ---
+      window.onload = () => {
+  document.getElementById('fullscreen-button').addEventListener('click', () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement) {
+      elem.requestFullscreen().catch(err => {
+        console.log(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+};
+
+        
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Eclipse Simulation</title>
     <style>
+html, body {
+            height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        #simulation-container {
+            flex-grow: 1;
+            width: 100%;
+            max-width: none;
+            height: 100%;
+            margin-bottom: 0;
+        }
+
+        #simulation-area {
+            flex-grow: 1;
+            height: 100%;
+            min-height: unset;
+        }
+
+        #controls {
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        footer {
+            padding: 10px 0;
+        }
         /* --- Dark Theme CSS (mostly same as V3) --- */
         :root {
             --bg-color: #1a1a1a;
@@ -463,8 +513,9 @@
     </script>
 
 
-    <footer style="margin-top: 40px; text-align: center; font-size: 0.9em; color: #888;">
-        Developed by <strong style="color: #FFD700;">Genex Space</strong>
+    <footer style="margin-top: 1    0px; text-align: center; font-size: 0.9em; color: #888;">
+        Developed by <strong style="color: #FFD700;">Genex Space</strong>        <button id="fullscreen-button">⛶</button>
+
     </footer>
 
 </body>
