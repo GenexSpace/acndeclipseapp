@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Eclipse Simulation</title>
+    <style>
+        /* --- Dark Theme CSS (mostly same as V3) --- */
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --container-bg: #282828;
+            --border-color: #444;
+            --highlight-color: #FFD700; /* Sun color */
+            --button-bg: #555;
+            --button-text: #fff;
+            --button-hover-bg: #777;
+            --select-bg: #333;
+            --select-text: #e0e0e0;
+            --info-bg: #333;
+            --space-bg: #000010; /* Darker space */
+            --moon-color: #b0b0b0; /* Lighter grey */
+        }
+
+        html, body {
+            height: 100%; margin: 0; padding: 0; box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background-color: var(--bg-color); color: var(--text-color); padding: 20px;
+        }
+
+        h1 { margin-bottom: 20px; color: var(--text-color); text-align: center; }
+
+        #controls {
+            margin-bottom: 20px; display: flex; flex-wrap: wrap; /* Allow wrapping */
+            justify-content: center; align-items: center; gap: 15px;
+        }
+
+        .control-group { display: flex; align-items: center; gap: 5px;} /* Group label & select */
+
+        label { font-weight: bold; white-space: nowrap; /* Prevent label wrapping */ }
+
+        select, button {
+            padding: 10px 15px; font-size: 1em; border-radius: 5px; cursor: pointer;
+            background-color: var(--select-bg); color: var(--select-text); border: 1px solid var(--border-color);
+        }
+
+        button {
+            background-color: var(--button-bg); color: var(--button-text); border: none;
+            transition: background-color 0.2s ease;
+        }
+        button:hover { background-color: var(--button-hover-bg); }
+        button:disabled { background-color: #444; cursor: not-allowed; opacity: 0.6; }
+
+        #moon-controls { display: none; } /* Initially hidden */
+
+        #simulation-container {
+            width: 90%; max-width: 1200px; margin-bottom: 20px; border: 1px solid var(--border-color);
+            background-color: var(--container-bg); padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border-radius: 8px; display: flex; flex-direction: column;
+        }
+
+        #simulation-area {
+            position: relative; width: 100%; height: 50vh; min-height: 350px;
+            background-color: var(--space-bg); overflow: hidden; margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        .celestial-body {
+            position: absolute; border-radius: 50%;
+            transform: translateY(-50%);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
+        }
+
+        #sun {
+            background-color: var(--highlight-color); z-index: 1;
+            box-shadow: 0 0 35px #FFA500, 0 0 60px #FF8C00;
+            top: 50%; transform: translate(-50%, -50%); left: 50%;
+        }
+
+        #moon {
+            background-color: var(--moon-color); z-index: 2;
+            /* transition managed by JS */
+            will-change: left; /* Hint for browser optimization */
+        }
+
+        #info-area {
+            background-color: var(--info-bg); padding: 15px 20px; border-radius: 5px;
+            text-align: left;
+        }
+        #info-area h2 {
+            margin-top: 0; color: var(--highlight-color); border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px; margin-bottom: 10px;
+        }
+        #info-area p { line-height: 1.6; color: var(--text-color); }
+    </style>
+</head>
+<body>
+
+    <h1>Solar Eclipse Simulation</h1>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="planet-select">View from:</label>
+            <select id="planet-select">
+                <option value="Mercury">Mercury</option>
+                <option value="Venus">Venus</option>
+                <option value="Earth" selected>Earth</option>
+                <option value="Mars">Mars</option>
+                <option value="Jupiter">Jupiter</option>
+                <option value="Saturn">Saturn</option>
+                <option value="Uranus">Uranus</option>
+                <option value="Neptune">Neptune</option>
+                <option value="Pluto">Pluto (Dwarf Planet)</option>
+            </select>
+        </div>
+        <div class="control-group" id="moon-controls">
+            <label for="moon-select">Moon:</label>
+            <select id="moon-select"></select>
+        </div>
+         <div class="control-group">
+            <label for="speed-select">Speed:</label>
+            <select id="speed-select">
+                <option value="slow">Slow</option>
+                <option value="normal" selected>Normal</option>
+                <option value="fast">Fast</option>
+                 <option value="very_fast">Very Fast</option>
+            </select>
+        </div>
+        <button id="start-button">Start Eclipse</button>
+    </div>
+
+    <div id="simulation-container">
+        <div id="simulation-area">
+            <div id="sun" class="celestial-body"></div>
+            <div id="moon" class="celestial-body"></div>
+        </div>
+         <div id="info-area">
+            <h2 id="planet-name">Earth</h2>
+            <p id="eclipse-description">Select a planet and press "Start Eclipse".</p>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Planet Data (Same as V3) ---
+          // --- Planet Data with Moons Array ---
+        const planetData = {
+            "Mercury": { relativeSunSizeFactor: 1.8, description: "Mercury has no moons, so solar eclipses cannot occur. The Sun appears much larger and brighter than from Earth." },
+            "Venus": { relativeSunSizeFactor: 1.4, description: "Venus has no moons, therefore no solar eclipses happen. The Sun appears larger than from Earth, though often obscured by thick clouds." },
+            "Earth": {
+                relativeSunSizeFactor: 1.0,
+                description: "Earth is unique! Its Moon has almost the exact same apparent size as the Sun. This allows for spectacular Total eclipses (Moon fully covers Sun, revealing the corona) and Annular eclipses (Moon slightly smaller, leaving a 'ring of fire'). Inclination means not every pass is an eclipse.",
+                moons: [
+                    { name: "Moon", relativeSizeFactor: 1.0, diameterKM: 3474, inclinationFactor: 0.0 } // Assume perfect alignment for simplicity here
+                ]
+            },
+            "Mars": {
+                relativeSunSizeFactor: 0.65,
+                description: "Mars's moons are small and cause transits. Phobos is larger and closer than Deimos. Their inclinations cause them to pass at different heights across the Sun.",
+                moons: [
+                    { name: "Phobos", relativeSizeFactor: 0.05, diameterKM: 22, inclinationFactor: 0.1 }, // Slightly off center
+                    { name: "Deimos", relativeSizeFactor: 0.015, diameterKM: 12, inclinationFactor: -0.6 } // Further off center
+                ]
+            },
+            "Jupiter": {
+                relativeSunSizeFactor: 0.2,
+                description: "From Jupiter, the Sun appears small. Its large Galilean moons frequently transit the Sun. Inclinations vary.",
+                moons: [ // Sorted by size approx
+                    { name: "Ganymede", relativeSizeFactor: 0.15, diameterKM: 5268, inclinationFactor: 0.1 },
+                    { name: "Callisto", relativeSizeFactor: 0.12, diameterKM: 4821, inclinationFactor: -0.2 },
+                    { name: "Io", relativeSizeFactor: 0.10, diameterKM: 3643, inclinationFactor: 0.0 }, // Close to center plane
+                    { name: "Europa", relativeSizeFactor: 0.08, diameterKM: 3122, inclinationFactor: 0.3 },
+                    { name: "Amalthea", relativeSizeFactor: 0.01, diameterKM: 167, inclinationFactor: 0.5 } // Smaller, included as 5th
+                ]
+            },
+            "Saturn": {
+                relativeSunSizeFactor: 0.1,
+                description: "The Sun is tiny from Saturn. Its larger moons cause frequent transits. Titan is the largest by far.",
+                 moons: [ // Sorted by size approx
+                    { name: "Titan", relativeSizeFactor: 0.06, diameterKM: 5150, inclinationFactor: 0.15 },
+                    { name: "Rhea", relativeSizeFactor: 0.015, diameterKM: 1528, inclinationFactor: -0.1 },
+                    { name: "Iapetus", relativeSizeFactor: 0.014, diameterKM: 1470, inclinationFactor: 0.8 }, // High inclination visually
+                    { name: "Dione", relativeSizeFactor: 0.011, diameterKM: 1123, inclinationFactor: 0.0 },
+                    { name: "Tethys", relativeSizeFactor: 0.010, diameterKM: 1062, inclinationFactor: -0.3 }
+                ]
+            },
+            "Uranus": {
+                 relativeSunSizeFactor: 0.05,
+                 description: "The Sun is extremely small. Transits by its major moons are rare due to the planet's axial tilt, but would appear as tiny dots.",
+                 moons: [ // Sorted by size approx
+                     { name: "Titania", relativeSizeFactor: 0.015, diameterKM: 1578, inclinationFactor: -0.1 },
+                     { name: "Oberon", relativeSizeFactor: 0.014, diameterKM: 1523, inclinationFactor: 0.2 },
+                     { name: "Umbriel", relativeSizeFactor: 0.011, diameterKM: 1169, inclinationFactor: 0.0 },
+                     { name: "Ariel", relativeSizeFactor: 0.011, diameterKM: 1158, inclinationFactor: 0.3 },
+                     { name: "Miranda", relativeSizeFactor: 0.005, diameterKM: 471, inclinationFactor: -0.6 }
+                 ]
+             },
+            "Neptune": {
+                relativeSunSizeFactor: 0.03,
+                description: "The Sun is a pinpoint. Triton, its large retrograde moon, can transit it.",
+                 moons: [ // Only Triton is significant enough for this sim scale
+                    { name: "Triton", relativeSizeFactor: 0.025, diameterKM: 2706, inclinationFactor: 0.4 } // Relatively high apparent inclination
+                 ]
+            },
+            "Pluto": {
+                 relativeSunSizeFactor: 0.02,
+                 description: "The Sun is just a bright star. Charon appears much larger than the Sun, causing total eclipses.",
+                 moons: [
+                     { name: "Charon", relativeSizeFactor: 0.4, diameterKM: 1212, inclinationFactor: 0.0 } // Assume centered for effect
+                 ]
+             }
+        };
+
+        // --- DOM Elements ---
+        const planetSelect = document.getElementById('planet-select');
+        const moonSelect = document.getElementById('moon-select');
+        const moonControls = document.getElementById('moon-controls');
+        const speedSelect = document.getElementById('speed-select'); // New speed selector
+        const startButton = document.getElementById('start-button');
+        const sunElement = document.getElementById('sun');
+        const moonElement = document.getElementById('moon');
+        const simulationArea = document.getElementById('simulation-area');
+        const planetNameElement = document.getElementById('planet-name');
+        const descriptionElement = document.getElementById('eclipse-description');
+
+        // --- Configuration ---
+        const BASE_SUN_DIAMETER = 180;
+        const BASE_MOON_DIAMETER = 180;
+        // const ANIMATION_LEG_DURATION_MS = 3500; // Replaced by speedSettings
+        const TRANSITION_TIMING_FUNCTION = 'cubic-bezier(0.4, 0, 0.6, 1)'; // Smooth start/end, faster middle
+        // const TRANSITION_TIMING_FUNCTION = 'ease-in-out'; // Alternative smooth timing
+        // const TRANSITION_TIMING_FUNCTION = 'linear'; // Constant speed (less natural)
+
+        const speedSettings = {
+            "slow": 6000,      // Duration per leg (ms)
+            "normal": 3500,
+            "fast": 1800,
+            "very_fast": 900
+        };
+
+        // --- State Variables ---
+        let animationTimeout1 = null, animationTimeout2 = null, animationTimeout3 = null; // Added 3 for cleanup timer
+        let isAnimating = false;
+        let currentPlanetData = null;
+        let currentMoonData = null;
+
+        // --- Functions ---
+
+        function resetAnimationState() {
+            clearTimeout(animationTimeout1);
+            clearTimeout(animationTimeout2);
+            clearTimeout(animationTimeout3); // Clear cleanup timer too
+            animationTimeout1 = null; animationTimeout2 = null; animationTimeout3 = null;
+            isAnimating = false;
+            moonElement.style.transition = 'none';
+            startButton.disabled = false;
+        }
+
+        function updateMoonVisuals(forceResetPosition = true) {
+            if (!currentPlanetData || !currentMoonData) {
+                moonElement.style.display = 'none';
+                return;
+            }
+
+            // Only reset animation/position if forced (e.g., changing moon)
+            // Avoids resetting just because window resized during animation
+             if (forceResetPosition) {
+                 resetAnimationState();
+             }
+
+            const simWidth = simulationArea.offsetWidth;
+            const sunDiameter = Math.max(5, BASE_SUN_DIAMETER * currentPlanetData.relativeSunSizeFactor);
+
+            const moonDiameter = Math.max(3, BASE_MOON_DIAMETER * currentMoonData.relativeSizeFactor);
+            const inclinationOffset = currentMoonData.inclinationFactor * (sunDiameter / 2.5);
+
+            // --- Moon Styling & Initial Positioning ---
+            moonElement.style.display = 'block';
+            moonElement.style.width = `${moonDiameter}px`;
+            moonElement.style.height = `${moonDiameter}px`;
+
+            const moonStartY = 50 + (inclinationOffset / simulationArea.offsetHeight * 100);
+            moonElement.style.top = `${moonStartY}%`;
+
+             if (forceResetPosition || !isAnimating) { // Only reset horizontal pos if not mid-animation
+                 const moonStartX = -Math.max(moonDiameter, 50) - 20;
+                 moonElement.style.left = `${moonStartX}px`;
+             }
+
+             // Update description
+             planetNameElement.textContent = `${planetSelect.value} / ${currentMoonData.name}`;
+             let baseDesc = currentPlanetData.description;
+             // Remove previous simulation text if exists
+             const simTextIndex = baseDesc.indexOf(" (Simulating");
+             if (simTextIndex !== -1) {
+                 baseDesc = baseDesc.substring(0, simTextIndex);
+             }
+             descriptionElement.textContent = baseDesc + ` (Simulating ${currentMoonData.name} transit.)`;
+
+            // Force reflow before potential animation
+             if (forceResetPosition) {
+                 void moonElement.offsetHeight;
+             }
+        }
+
+
+        function updateSimulationForPlanet(planetName) {
+            resetAnimationState(); // Always stop animation when planet changes
+            currentPlanetData = planetData[planetName];
+            if (!currentPlanetData) return;
+
+            const simWidth = simulationArea.offsetWidth;
+            const sunDiameter = Math.max(5, BASE_SUN_DIAMETER * currentPlanetData.relativeSunSizeFactor);
+
+            // --- Sun Styling ---
+            sunElement.style.width = `${sunDiameter}px`;
+            sunElement.style.height = `${sunDiameter}px`;
+
+             // --- Moon Selection Logic ---
+            moonSelect.innerHTML = '';
+            currentMoonData = null;
+
+            if (currentPlanetData.moons && currentPlanetData.moons.length > 0) {
+                const sortedMoons = [...currentPlanetData.moons]
+                                     .sort((a, b) => b.diameterKM - a.diameterKM)
+                                     .slice(0, 5);
+
+                sortedMoons.forEach((moon, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = moon.name;
+                    moonSelect.appendChild(option);
+                });
+
+                moonControls.style.display = 'flex';
+                moonSelect.disabled = false;
+                moonSelect.value = 0;
+                currentMoonData = sortedMoons[0];
+
+            } else {
+                moonControls.style.display = 'none';
+                moonSelect.disabled = true;
+                 planetNameElement.textContent = planetName; // Update title
+                 descriptionElement.textContent = currentPlanetData.description; // Update description
+            }
+
+            // --- Update Visuals based on (default) Moon Selection ---
+            updateMoonVisuals(true); // Force reset position
+        }
+
+
+        function startEclipseAnimation() {
+             if (isAnimating) return;
+             if (!currentMoonData) { console.log("No moon selected."); return; }
+
+             const selectedSpeed = speedSelect.value;
+             const animationDuration = speedSettings[selectedSpeed] || speedSettings['normal']; // Fallback to normal
+
+             const simWidth = simulationArea.offsetWidth;
+             const moonDiameter = parseFloat(moonElement.style.width);
+             const moonCurrentLeft = parseFloat(moonElement.style.left);
+             const moonCurrentTop = moonElement.style.top;
+
+             // Ensure moon is at start position before animating
+             // Call updateMoonVisuals again to be safe, forcing position reset
+             updateMoonVisuals(true);
+             // Need a tiny delay AFTER resetting position and BEFORE applying transition
+             const moonStartX = parseFloat(moonElement.style.left); // Get the actual start X after reset
+
+             const moonMidX = (simWidth / 2) - (moonDiameter / 2);
+             const moonEndX = simWidth + 20;
+
+             console.log(`Starting animation (${selectedSpeed}): ${moonStartX}px -> ${moonMidX}px -> ${moonEndX}px at ${animationDuration}ms/leg`);
+
+             isAnimating = true;
+             startButton.disabled = true;
+
+             // Use a small delay (e.g., 20-50ms) before applying the first transition
+             // This ensures the browser registers the starting position correctly.
+             animationTimeout1 = setTimeout(() => {
+                 // --- Stage 1: Move to Center ---
+                 moonElement.style.transition = `left ${animationDuration}ms ${TRANSITION_TIMING_FUNCTION}`;
+                 moonElement.style.left = `${moonMidX}px`;
+
+                 // --- Stage 2: Move from Center to Right ---
+                 animationTimeout2 = setTimeout(() => {
+                    // Re-apply transition properties for the second leg
+                    moonElement.style.transition = `left ${animationDuration}ms ${TRANSITION_TIMING_FUNCTION}`;
+                    moonElement.style.left = `${moonEndX}px`;
+
+                    // --- Animation End Handling ---
+                    animationTimeout3 = setTimeout(() => {
+                        console.log("Animation finished.");
+                        // Keep state clean, but don't reset visuals immediately
+                        isAnimating = false;
+                        startButton.disabled = false;
+                        // Consider resetting visuals after a slightly longer delay or leave it off-screen
+                        // resetAnimationState(); // This would clear timeouts, enable button
+                        // updateMoonVisuals(true); // This would snap it back to start
+                    }, animationDuration + 100); // Cleanup slightly after leg 2 finishes
+
+                 }, animationDuration); // Start stage 2 when stage 1 ends
+
+             }, 50); // Initial delay before first transition starts
+        }
+
+        // --- Event Listeners ---
+        planetSelect.addEventListener('change', (event) => {
+            updateSimulationForPlanet(event.target.value);
+        });
+
+        moonSelect.addEventListener('change', (event) => {
+            const selectedIndex = parseInt(event.target.value, 10);
+            const planetName = planetSelect.value;
+            const planetMoons = planetData[planetName]?.moons;
+            if (planetMoons) {
+                const sortedMoons = [...planetMoons]
+                                    .sort((a, b) => b.diameterKM - a.diameterKM)
+                                    .slice(0, 5);
+                currentMoonData = sortedMoons[selectedIndex];
+                updateMoonVisuals(true); // Force reset position when changing moon
+            }
+        });
+
+        startButton.addEventListener('click', startEclipseAnimation);
+
+        // No specific listener needed for speedSelect, its value is read on 'Start Eclipse' click
+
+        // Handle window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                 console.log("Window resized, updating simulation layout.");
+                 const wasAnimating = isAnimating;
+                 resetAnimationState(); // Stop any animation during resize
+                 updateSimulationForPlanet(planetSelect.value);
+                 // If it was animating, we might want to restart, but for simplicity, just reset.
+            }, 250);
+        });
+
+        // --- Initial setup ---
+        setTimeout(() => {
+             updateSimulationForPlanet(planetSelect.value);
+        }, 50); // Small delay for initial layout
+
+    </script>
+
+</body>
+</html>
